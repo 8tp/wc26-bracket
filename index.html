@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>World Cup 2026 · Live Bracket</title>
+  <meta name="description" content="Live 2026 FIFA World Cup bracket and group standings, updating in real time." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#bracket-view">Skip to content</a>
+
+  <header class="app-header" id="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">26</span>
+        <div class="brand-text">
+          <h1 class="brand-title">World Cup <span class="brand-year">2026</span></h1>
+          <p class="brand-sub" id="phase-label">Loading tournament…</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="live-badge" id="live-badge" hidden>
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="live-count">0</span> live
+        </span>
+        <span class="updated" id="updated-stamp" aria-live="polite"></span>
+        <span class="spinner" id="refresh-spinner" role="status" aria-label="Refreshing data" hidden></span>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Choose view">
+      <button class="tab-btn is-active" data-view="bracket" id="tab-bracket" role="tab" aria-selected="true" aria-controls="bracket-view" type="button">Bracket</button>
+      <button class="tab-btn" data-view="groups" id="tab-groups" role="tab" aria-selected="false" aria-controls="groups-view" type="button">Groups</button>
+    </nav>
+  </header>
+
+  <main class="app-main">
+    <div class="banner banner-error" id="error-banner" role="status" hidden></div>
+
+    <section class="view" id="bracket-view" role="tabpanel" aria-labelledby="tab-bracket" tabindex="-1"></section>
+    <section class="view" id="groups-view" role="tabpanel" aria-labelledby="tab-groups" tabindex="-1" hidden></section>
+
+    <div class="skeleton" id="loading-skeleton" aria-hidden="true">
+      <div class="skel-row">
+        <div class="skel-col"><span></span><span></span><span></span><span></span></div>
+        <div class="skel-col"><span></span><span></span></div>
+        <div class="skel-col center"><span class="tall"></span></div>
+        <div class="skel-col"><span></span><span></span></div>
+        <div class="skel-col"><span></span><span></span><span></span><span></span></div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <p>
+      Data via <a href="https://www.espn.com/soccer/" target="_blank" rel="noopener noreferrer">ESPN</a>
+      <span class="dot-sep" aria-hidden="true">·</span>
+      <span id="footer-updated">—</span>
+      <span class="dot-sep" aria-hidden="true">·</span>
+      <span id="footer-source">—</span>
+    </p>
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/groups.js"></script>
+  <script src="js/bracket.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

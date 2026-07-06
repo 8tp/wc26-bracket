@@ -1,0 +1,5 @@
+# local dev fixtures (bundled copy lives in data/snapshot.json)
+espn_all.json
+espn_standings.json
+espn_scoreboard.json
+.claude/
