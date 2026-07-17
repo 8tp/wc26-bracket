@@ -10,6 +10,8 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const SVGNS = 'http://www.w3.org/2000/svg';
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MOBILE_MQ = window.matchMedia('(max-width: 900px)');
+const isMobile = () => MOBILE_MQ.matches;
 
 function svgEl(tag, attrs = {}) {
   const n = document.createElementNS(SVGNS, tag);
@@ -28,6 +30,7 @@ const state = {
   focusTeams: new Set(),
   vb: { x: 0, y: 0, w: 1000, h: 700 },
   pollTimer: null,
+  booted: false,
 };
 
 /* ------------------------------------------------------------ boot */
@@ -58,12 +61,29 @@ function mount() {
   state.stationEls = stationEls;
   wrap.appendChild(svg);
 
-  fitMap(false);
+  // first mount picks the entry view; later remounts (theme, poll) keep the user's camera
+  if (!state.booted) {
+    initialView();
+    state.booted = true;
+  } else {
+    applyVb();
+  }
+  buildRoundStrip();
   buildDirectory();
   buildBoard();
   bindMapInteractions();
   updatePlaque();
   if (state.selected) selectTeam(state.selected, { fly: false });
+}
+
+/* entry view: desktop fits the whole network; phones open readable,
+   zoomed into the group districts */
+function initialView() {
+  if (!isMobile()) return fitMap(false);
+  const r = $('#mapwrap').getBoundingClientRect();
+  const w = Math.min(900, Math.max(400, r.width / 0.92));
+  state.vb = { x: -14, y: 26, w, h: w / aspect() };
+  applyVb();
 }
 
 function updatePlaque() {
@@ -79,16 +99,64 @@ function updatePlaque() {
 function updateThemeButton() {
   const dark = document.documentElement.dataset.theme === 'dark';
   $('#theme-toggle').textContent = dark ? 'Day' : 'Night';
+  $('#m-theme').textContent = dark ? '☀' : '☾';
 }
 updateThemeButton();
 
-$('#theme-toggle').addEventListener('click', () => {
+function toggleTheme() {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
   try { localStorage.setItem('wc26-theme', next); } catch { /* private mode */ }
   updateThemeButton();
   if (state.model) mount(); // re-render: line colors are theme-adjusted
-});
+}
+$('#theme-toggle').addEventListener('click', toggleTheme);
+$('#m-theme').addEventListener('click', toggleTheme);
+
+/* ------------------------------------------------------ round strip */
+
+const ROUND_STOPS = [
+  ['GROUPS', 190],
+  ['YARD', L.YARD_X0 + 16 * L.TRACK_PITCH],
+  ['R32', L.R32_X],
+  ['R16', L.R16_X],
+  ['QF', L.QF_X],
+  ['SF', L.SF_X],
+  ['FINAL', L.FINAL_X],
+];
+let stripActive = -1;
+
+function buildRoundStrip() {
+  const strip = $('#roundstrip');
+  if (!strip.childElementCount) {
+    for (const [label, x] of ROUND_STOPS) {
+      const b = document.createElement('button');
+      b.className = 'rs-stop';
+      b.textContent = label;
+      b.addEventListener('click', () => {
+        play.follow = false;
+        animateVb({ x: x - state.vb.w / 2, y: state.vb.y, w: state.vb.w, h: state.vb.h });
+      });
+      strip.appendChild(b);
+    }
+  }
+  stripActive = -1;
+  updateRoundStrip();
+}
+
+function updateRoundStrip() {
+  const strip = $('#roundstrip');
+  if (!strip || !strip.childElementCount) return;
+  const cx = state.vb.x + state.vb.w / 2;
+  let best = 0, bd = Infinity;
+  ROUND_STOPS.forEach(([, x], i) => {
+    const d = Math.abs(x - cx);
+    if (d < bd) { bd = d; best = i; }
+  });
+  if (best === stripActive) return;
+  stripActive = best;
+  [...strip.children].forEach((el2, i) => el2.classList.toggle('active', i === best));
+}
 
 /* -------------------------------------------------------- directory */
 
@@ -225,15 +293,6 @@ function bindMapInteractions() {
   });
   svg.addEventListener('mouseleave', () => { clearFocus(); hideTooltip(); });
 
-  svg.addEventListener('click', (e) => {
-    const mEl = e.target.closest('.station[data-match], .tick[data-match]');
-    if (mEl) return openMatchCard(mEl.dataset.match);
-    const tEl = e.target.closest('[data-team]');
-    if (tEl) return selectTeam(tEl.dataset.team, { fly: false });
-    closeDrawer();
-    closeMatchCard();
-  });
-
   bindPanZoom();
 }
 
@@ -314,6 +373,7 @@ function selectTeam(teamId, { fly } = {}) {
   applyFocus();
   const t = state.model.teams[teamId];
   if (!t) return;
+  closeMobileSheet();
   if (fly) flyToTeam(teamId);
   openDrawer(t);
   for (const r of $$('.dir-team')) r.classList.toggle('active', r.dataset.team === teamId);
@@ -366,7 +426,18 @@ function openDrawer(t) {
   const canPlay = state.routes?.[t.id]?.stops.length > 0;
 
   d.innerHTML = `
+    <div class="mini">
+      <button class="mini-main" id="mini-expand" aria-label="Expand journey">
+        <span class="mini-cband" style="background:${lineColor}"></span>
+        ${t.logo ? `<img src="${t.logo}" alt="">` : ''}
+        <span class="mini-team">${t.abbr ?? t.name}</span>
+        <span class="mini-stop" id="mini-stop">${t.name} line</span>
+      </button>
+      <button class="mini-btn" id="mini-play" aria-label="Play or pause">▶</button>
+      <button class="mini-btn" id="mini-close" aria-label="Close">×</button>
+    </div>
     <div class="dr-band" style="background:${lineColor};color:${fg}">
+      <span class="dr-grab" aria-hidden="true"></span>
       ${t.logo ? `<img src="${t.logo}" alt="">` : ''}
       <span class="dr-line-name">${t.name}</span>
       <button class="close" id="drawer-close" aria-label="Close">×</button>
@@ -379,9 +450,20 @@ function openDrawer(t) {
       ${canPlay ? '<button id="journey-play" class="play-btn">▶ Play journey</button>' : ''}
       <div class="dr-route">${rows || '<div class="jr-empty">No services yet.</div>'}</div>
     </div>`;
+
+  if (isMobile()) {
+    const keepMini = d.classList.contains('open') && d.dataset.state === 'mini'
+      && play.playing && play.teamId === t.id;
+    d.dataset.state = keepMini ? 'mini' : (d.classList.contains('open') && d.dataset.state === 'full' ? 'full' : 'half');
+  } else {
+    delete d.dataset.state;
+  }
   d.classList.add('open');
 
   $('#drawer-close').addEventListener('click', closeDrawer);
+  $('#mini-close').addEventListener('click', closeDrawer);
+  $('#mini-expand').addEventListener('click', () => setDrawerState('half'));
+  $('#mini-play').addEventListener('click', () => togglePlay(t.id));
   const playBtn = $('#journey-play');
   if (playBtn) playBtn.addEventListener('click', () => togglePlay(t.id));
   for (const row of $$('.jr-row', d)) {
@@ -390,6 +472,56 @@ function openDrawer(t) {
       openMatchCard(row.dataset.match);
     });
   }
+  bindDrawerDrag(d);
+  updatePlayBtn();
+}
+
+function setDrawerState(s) {
+  $('#drawer').dataset.state = s;
+}
+
+/* drag the journey sheet by its band: snaps to full / half / mini / closed */
+function bindDrawerDrag(d) {
+  const band = $('.dr-band', d);
+  if (!band) return;
+  let dragging = false, startY = 0, startT = 0, h = 0;
+
+  band.addEventListener('pointerdown', (e) => {
+    if (!isMobile() || e.target.closest('button')) return;
+    dragging = true;
+    band.setPointerCapture(e.pointerId);
+    h = d.getBoundingClientRect().height;
+    startY = e.clientY;
+    startT = new DOMMatrixReadOnly(getComputedStyle(d).transform).m42;
+    d.style.transition = 'none';
+  });
+  band.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const ty = Math.min(h, Math.max(0, startT + (e.clientY - startY)));
+    d.style.transform = `translateY(${ty}px)`;
+  });
+  const end = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    const ty = new DOMMatrixReadOnly(getComputedStyle(d).transform).m42;
+    const miniH = $('.mini', d)?.offsetHeight || 60;
+    const stops = [
+      ['full', 0],
+      ['half', Math.max(0, h - window.innerHeight * 0.46)],
+      ['close', h],
+    ];
+    if (play.teamId) stops.splice(2, 0, ['mini', h - miniH]);
+    const pick = stops.reduce((a, b) => (Math.abs(b[1] - ty) < Math.abs(a[1] - ty) ? b : a));
+    d.style.transition = '';
+    if (pick[0] === 'close') {
+      d.style.transform = '';
+      return closeDrawer();
+    }
+    setDrawerState(pick[0]);
+    requestAnimationFrame(() => { d.style.transform = ''; });
+  };
+  band.addEventListener('pointerup', end);
+  band.addEventListener('pointercancel', end);
 }
 
 function closeDrawer() {
@@ -481,6 +613,8 @@ function togglePlay(teamId) {
     if (play.pos >= play.total - 1) play.pos = 0;
     play.target = play.total;
     play.seek = false;
+    // riding on mobile: collapse the journey sheet to the mini player so the map shows
+    if (isMobile()) setDrawerState('mini');
     if (REDUCED) {
       play.pos = play.total;
       renderPlayProgress();
@@ -573,9 +707,10 @@ function playTick() {
     }
     // glide the camera the rest of the way to the terminal stop
     if (play.follow && play.pt) {
+      const s = camShift();
       animateVb({
-        x: play.pt.x - state.vb.w / 2 + drawerShift(),
-        y: play.pt.y - state.vb.h / 2,
+        x: play.pt.x - state.vb.w / 2 + s.dx,
+        y: play.pt.y - state.vb.h / 2 + s.dy,
         w: state.vb.w,
         h: state.vb.h,
       });
@@ -611,15 +746,21 @@ function spawnCallout(s, special) {
     }
     persist = s.len >= play.stops[play.stops.length - 1].len - 0.5;
   }
+  if (special) {
+    const ms = $('#mini-stop');
+    if (ms) { ms.textContent = special; ms.dataset.res = 'champ'; }
+  }
+  const mob = isMobile();
+  const ty = play.pt.y - (mob ? 24 : 21);
   const pt = { x: play.pt.x, y: play.pt.y };
   const g = svgEl('g', { class: `play-callout pc-${cls}` });
-  const text = svgEl('text', { x: pt.x, y: pt.y - 21, 'text-anchor': 'middle' });
+  const text = svgEl('text', { x: pt.x, y: ty, 'text-anchor': 'middle' });
   text.textContent = label;
   g.appendChild(text);
   state.svg.appendChild(g);
   const wpx = text.getComputedTextLength();
   g.insertBefore(svgEl('rect', {
-    x: pt.x - wpx / 2 - 7, y: pt.y - 21 - 12, width: wpx + 14, height: 17,
+    x: pt.x - wpx / 2 - 7, y: ty - (mob ? 15 : 12), width: wpx + 14, height: mob ? 21 : 17,
   }), text);
   if (!persist) {
     setTimeout(() => {
@@ -651,34 +792,67 @@ function markCurrentRow(matchId) {
   for (const r of $$('.jr-row')) r.classList.toggle('current', r.dataset.match === matchId);
   const cur = $(`.jr-row[data-match="${matchId}"]`);
   cur?.scrollIntoView({ block: 'nearest', behavior: REDUCED ? 'auto' : 'smooth' });
+  updateMiniStop(matchId);
+}
+
+/* current stop + result in the mini player bar */
+function updateMiniStop(matchId) {
+  const ms = $('#mini-stop');
+  if (!ms || !play.teamId) return;
+  const t = state.model.teams[play.teamId];
+  const j = t?.journey.find((x) => x.match.id === matchId);
+  if (!j) return;
+  const opp = state.model.teams[j.opponentId]?.abbr ?? 'TBD';
+  const res = j.result;
+  const label = res === 'sched' ? `v ${opp}`
+    : res === 'live' ? `LIVE ${myScore(j.match, t.id)} ${opp}`
+    : `${res.toUpperCase()} ${myScore(j.match, t.id)} ${opp}`;
+  ms.textContent = `${ROUND_LABEL[j.round].toUpperCase()} · ${label}`;
+  ms.dataset.res = res;
 }
 
 function updatePlayBtn() {
+  const idle = !play.teamId || play.total <= 0;
   const btn = $('#journey-play');
-  if (!btn) return;
-  btn.textContent = play.playing && !play.seek ? '❚❚ Pause'
-    : play.pos >= play.total - 1 ? '↺ Replay journey'
-    : play.pos > 0 ? '▶ Resume'
-    : '▶ Play journey';
+  if (btn) {
+    btn.textContent = idle ? '▶ Play journey'
+      : play.playing && !play.seek ? '❚❚ Pause'
+      : play.pos >= play.total - 1 ? '↺ Replay journey'
+      : play.pos > 0 ? '▶ Resume'
+      : '▶ Play journey';
+  }
+  const mini = $('#mini-play');
+  if (mini) {
+    mini.textContent = idle ? '▶'
+      : play.playing && !play.seek ? '❚❚'
+      : play.pos >= play.total - 1 ? '↺' : '▶';
+  }
 }
 
-/* horizontal shift (map units) so the follow target centers in the
-   part of the viewport not covered by the open drawer */
-function drawerShift() {
+/* shift (map units) so the follow target centers in the part of the
+   viewport not covered by chrome: the side drawer on desktop, the
+   open bottom sheet (mini player or half sheet) on mobile */
+function camShift() {
   const r = $('#mapwrap').getBoundingClientRect();
-  const drawerPx = $('#drawer').classList.contains('open') && r.width > 900 ? 380 : 0;
-  return (drawerPx / 2) * (state.vb.w / r.width);
+  const d = $('#drawer');
+  if (!d.classList.contains('open')) return { dx: 0, dy: 0 };
+  if (r.width > 900) return { dx: (380 / 2) * (state.vb.w / r.width), dy: 0 };
+  const top = d.getBoundingClientRect().top;
+  const vis = Math.max(0, Math.min(r.height, r.height - top));
+  return { dx: 0, dy: (vis / 2) * (state.vb.h / r.height) };
 }
 
 function followCam() {
   if (!play.follow || !play.pt) return;
   // keep the marker centered-ish; respect the user's zoom level (cap width)
-  if (state.vb.w > 760) {
-    state.vb.w = Math.max(760, state.vb.w * 0.94);
+  const followW = isMobile() ? 500 : 760;
+  if (state.vb.w > followW) {
+    state.vb.w = Math.max(followW, state.vb.w * 0.94);
     state.vb.h = state.vb.w / aspect();
   }
-  const cx = state.vb.x + state.vb.w / 2 - drawerShift();
-  const cy = state.vb.y + state.vb.h / 2;
+  const s = camShift();
+  const cx = state.vb.x + state.vb.w / 2 - s.dx;
+  const cy = state.vb.y + state.vb.h / 2 - s.dy;
   state.vb.x += (play.pt.x - cx) * 0.10;
   state.vb.y += (play.pt.y - cy) * 0.10;
   applyVb();
@@ -735,6 +909,10 @@ function bindPanZoom() {
   const wrap = $('#mapwrap');
   const pointers = new Map();
   let pinchD0 = 0, pinchW0 = 0;
+  let moved = false;
+  let downAt = null;
+  let lastTap = null;
+  let tapTimer = 0;
 
   const toSvg = (e) => {
     const r = wrap.getBoundingClientRect();
@@ -751,11 +929,16 @@ function bindPanZoom() {
     zoomAt(p.x, p.y, state.vb.w * scale);
   };
 
+  /* pan can start anywhere (even on a station's hit target); a press that
+     never moves past the threshold is treated as a tap on release */
   wrap.onpointerdown = (e) => {
-    if (e.target.closest('.station, [data-team]')) return; // let clicks through
-    wrap.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2) {
+    if (pointers.size === 1) {
+      moved = false;
+      downAt = { x: e.clientX, y: e.clientY };
+    } else if (pointers.size === 2) {
+      moved = true; // a pinch is never a tap
+      wrap.setPointerCapture(e.pointerId);
       const [p1, p2] = [...pointers.values()];
       pinchD0 = Math.hypot(p1.x - p2.x, p1.y - p2.y);
       pinchW0 = state.vb.w;
@@ -766,6 +949,11 @@ function bindPanZoom() {
     const prev = pointers.get(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.size === 1) {
+      if (!moved) {
+        if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 6) return;
+        moved = true;
+        wrap.setPointerCapture(e.pointerId);
+      }
       const r = wrap.getBoundingClientRect();
       state.vb.x -= ((e.clientX - prev.x) / r.width) * state.vb.w;
       state.vb.y -= ((e.clientY - prev.y) / r.height) * state.vb.h;
@@ -780,9 +968,52 @@ function bindPanZoom() {
       }
     }
   };
-  const up = (e) => pointers.delete(e.pointerId);
+  const up = (e) => {
+    const wasTap = pointers.size === 1 && !moved && downAt;
+    pointers.delete(e.pointerId);
+    if (wasTap) handleTap(e);
+    if (!pointers.size) downAt = null;
+  };
   wrap.onpointerup = up;
-  wrap.onpointercancel = up;
+  wrap.onpointercancel = (e) => { pointers.delete(e.pointerId); downAt = null; };
+
+  function handleTap(e) {
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    const mEl = target?.closest?.('[data-match]');
+    if (mEl) {
+      const match = state.model.byId[mEl.dataset.match];
+      if (match) focusTeams(new Set([match.a.teamId, match.b.teamId].filter(Boolean)));
+      closeMobileSheet();
+      return openMatchCard(mEl.dataset.match);
+    }
+    const tEl = target?.closest?.('[data-team]');
+    if (tEl) {
+      closeMobileSheet();
+      return selectTeam(tEl.dataset.team, { fly: false });
+    }
+    // background tap: double-tap zooms, single tap clears chrome
+    if (isMobile()) {
+      const now = performance.now();
+      if (lastTap && now - lastTap.t < 320
+          && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 48) {
+        clearTimeout(tapTimer);
+        lastTap = null;
+        const p = toSvg(e);
+        return zoomAt(p.x, p.y, state.vb.w * 0.55);
+      }
+      lastTap = { t: now, x: e.clientX, y: e.clientY };
+      tapTimer = setTimeout(() => {
+        lastTap = null;
+        closeMatchCard();
+        closeMobileSheet();
+        // keep the mini player alive mid-ride; anything larger dismisses
+        if ($('#drawer').dataset.state !== 'mini') closeDrawer();
+      }, 330);
+    } else {
+      closeDrawer();
+      closeMatchCard();
+    }
+  }
 }
 
 function zoomAt(x, y, newW) {
@@ -807,6 +1038,7 @@ function clampVb() {
 function applyVb() {
   const { x, y, w, h } = state.vb;
   state.svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+  updateRoundStrip();
 }
 
 const aspect = () => {
@@ -819,10 +1051,10 @@ function fitMap(animate = true) {
   const r = $('#mapwrap').getBoundingClientRect();
   const desktop = r.width > 900;
   // pixel padding so the plaque / sheets never cover the map
-  const padL = desktop ? 330 : 8;
-  const padT = desktop ? 10 : 150;
-  const padR = desktop ? 14 : 8;
-  const padB = desktop ? 14 : 60;
+  const padL = desktop ? 330 : 10;
+  const padT = desktop ? 10 : 96;
+  const padR = desktop ? 14 : 10;
+  const padB = desktop ? 14 : 72;
   // solve view width so content + css-px padding fits: w = W + (padL+padR)*(w/cssW)
   const wW = g.W / Math.max(0.2, 1 - (padL + padR) / r.width);
   const wH = (g.H / Math.max(0.2, 1 - (padT + padB) / r.height)) * aspect();
@@ -841,6 +1073,11 @@ function fitMap(animate = true) {
 function flyToTeam(teamId) {
   const a = state.teamAnchors[teamId];
   if (!a) return;
+  if (isMobile()) {
+    // half sheet covers the lower ~46dvh: aim the anchor at the visible upper area
+    const w = 460, h = w / aspect();
+    return animateVb({ x: a.x - w * 0.2, y: a.y - h * 0.25, w, h });
+  }
   const w = 620;
   animateVb({ x: a.x - 180, y: a.y - (w / aspect()) / 2, w, h: w / aspect() });
 }
@@ -872,8 +1109,34 @@ window.addEventListener('resize', () => { if (state.geo) { state.vb.h = state.vb
 
 /* ------------------------------------------------------------ panels */
 
-$('#dir-toggle').addEventListener('click', () => $('#directory').classList.toggle('open'));
-$('#board-toggle').addEventListener('click', () => $('#board').classList.toggle('open'));
+/* mobile bottom sheet: Lines / Services segmented control */
+function openMobileSheet(pane) {
+  const sheet = $('#sheet');
+  sheet.classList.add('open');
+  sheet.dataset.pane = pane;
+  $('#tab-lines').classList.toggle('active', pane === 'lines');
+  $('#tab-services').classList.toggle('active', pane === 'services');
+  closeMatchCard();
+  const d = $('#drawer');
+  if (d.classList.contains('open') && d.dataset.state !== 'mini') closeDrawer();
+}
+function closeMobileSheet() {
+  $('#sheet').classList.remove('open');
+  $('#tab-lines').classList.remove('active');
+  $('#tab-services').classList.remove('active');
+}
+function bindTab(id, pane) {
+  $(id).addEventListener('click', () => {
+    const s = $('#sheet');
+    if (s.classList.contains('open') && s.dataset.pane === pane) closeMobileSheet();
+    else openMobileSheet(pane);
+  });
+}
+bindTab('#tab-lines', 'lines');
+bindTab('#tab-services', 'services');
+
+$('#m-fit').addEventListener('click', () => fitMap(true));
+$('#m-legend').addEventListener('click', () => $('#legend').classList.toggle('open'));
 $('#legend-toggle').addEventListener('click', () => $('#legend').classList.toggle('open'));
 $('#legend-close').addEventListener('click', () => $('#legend').classList.remove('open'));
 $('#legend').addEventListener('click', (e) => { if (e.target.id === 'legend') $('#legend').classList.remove('open'); });

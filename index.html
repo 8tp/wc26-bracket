@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=3">
 </head>
 <body>
 
@@ -33,6 +33,11 @@
     <div class="band">
       <span class="band-title">WC26 Transit</span>
       <span id="datasource" class="ds">connecting…</span>
+      <span class="band-actions">
+        <button id="m-fit" aria-label="Fit map">⤢</button>
+        <button id="m-legend" aria-label="How to read this map">?</button>
+        <button id="m-theme" aria-label="Switch theme">☾</button>
+      </span>
     </div>
     <div class="plaque-body">
       <p class="sub">FIFA World Cup 2026 · every team a line, every match a station. 48 lines depart; one reaches MetLife.</p>
@@ -44,19 +49,24 @@
     </div>
   </header>
 
-  <aside id="directory" class="panel" aria-label="Team directory">
-    <button id="dir-toggle">Lines</button>
-    <div class="dir-head">
-      <input id="search" type="search" placeholder="Find a line (team)…" autocomplete="off" aria-label="Search teams">
-    </div>
-    <div id="teamlist"></div>
-  </aside>
+  <nav id="roundstrip" aria-label="Rounds"></nav>
 
-  <section id="board" class="panel" aria-label="Service board">
-    <div class="band"><span class="band-title">Departures &amp; arrivals</span></div>
-    <div id="board-list"></div>
-  </section>
-  <button id="board-toggle">Services</button>
+  <div id="sheet">
+    <div class="sheet-tabs">
+      <button id="tab-lines" class="sheet-tab">Lines</button>
+      <button id="tab-services" class="sheet-tab">Services</button>
+    </div>
+    <aside id="directory" class="panel" aria-label="Team directory">
+      <div class="dir-head">
+        <input id="search" type="search" placeholder="Find a line (team)…" autocomplete="off" aria-label="Search teams">
+      </div>
+      <div id="teamlist"></div>
+    </aside>
+    <section id="board" class="panel" aria-label="Service board">
+      <div class="band"><span class="band-title">Departures &amp; arrivals</span></div>
+      <div id="board-list"></div>
+    </section>
+  </div>
 
   <section id="drawer" class="panel" aria-label="Journey"></section>
   <section id="matchcard" class="panel" aria-label="Match details"></section>
@@ -117,6 +127,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>

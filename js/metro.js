@@ -283,6 +283,7 @@ export function render(model) {
 
     // flag + name
     const gOrg = el('g', { class: 'origin', 'data-team': t.id });
+    gOrg.appendChild(el('rect', { x: 12, y: y - 12, width: L.ORIGIN_X - 4, height: 24, class: 'hit' }));
     gOrg.appendChild(el('rect', { x: L.FLAG_X - 1, y: y - 6.5, width: 20, height: 13, fill: color, opacity: 0.85 }));
     if (t.logo) gOrg.appendChild(el('image', { href: t.logo, x: L.FLAG_X, y: y - 5.5, width: 18, height: 11, preserveAspectRatio: 'xMidYMid slice' }));
     gOrg.appendChild(el('text', { x: L.LABEL_X - 6, y: y + 3.6, class: 'team-name', 'text-anchor': 'end' }, [document.createTextNode(t.name)]));
@@ -323,6 +324,8 @@ export function render(model) {
       gLine.appendChild(el('path', { d: pts(d), class: 'line line-dead', stroke: color }));
       gLine.appendChild(terminusBar(L.GATE_X + 3, y));
     }
+    // invisible widened stroke so the line is tappable on touch screens
+    gLine.appendChild(el('path', { d: pts(d), class: 'line-hit' }));
     gLines.appendChild(gLine);
 
     // route record: origin, matchday stops (on the straight run), then the rest
@@ -350,6 +353,10 @@ export function render(model) {
         cx: x, cy: y, r: 4, class: `tick tick-${res}`, 'data-team': t.id, 'data-match': j.match.id,
       });
       gLine.appendChild(tick);
+      // enlarged touch target (widest ellipse that clears the 26-unit row pitch)
+      gLine.appendChild(el('ellipse', {
+        cx: x, cy: y, rx: 17, ry: 12, class: 'hit', 'data-team': t.id, 'data-match': j.match.id,
+      }));
     });
   }
 
@@ -368,6 +375,7 @@ export function render(model) {
         gLines.appendChild(el('path', {
           d: pts(d), class: 'line ko-seg', stroke: teamColor[w], 'data-team': w,
         }));
+        gLines.appendChild(el('path', { d: pts(d), class: 'line-hit', 'data-team': w }));
       } else {
         gGuides.appendChild(el('path', { d: pts(d), class: 'guide' }));
       }
@@ -379,8 +387,10 @@ export function render(model) {
     const yF = geo.yFinal;
     const w = model.bracket.winnerOf(geo.finalNode.match);
     const d = route45(L.FINAL_X + 13, yF, L.CROWN_X, yF, 20);
-    if (w) gLines.appendChild(el('path', { d: pts(d), class: 'line ko-seg', stroke: teamColor[w], 'data-team': w }));
-    else gGuides.appendChild(el('path', { d: pts(d), class: 'guide guide-gold' }));
+    if (w) {
+      gLines.appendChild(el('path', { d: pts(d), class: 'line ko-seg', stroke: teamColor[w], 'data-team': w }));
+      gLines.appendChild(el('path', { d: pts(d), class: 'line-hit', 'data-team': w }));
+    } else gGuides.appendChild(el('path', { d: pts(d), class: 'guide guide-gold' }));
   }
 
   /* bronze shuttle (3rd place) */
@@ -484,6 +494,7 @@ export function render(model) {
       gSt.appendChild(t);
     }
 
+    gSt.appendChild(el('circle', { cx: x, cy: y, r: 20, class: 'hit' }));
     gStations.appendChild(gSt);
     stationEls[m.id] = gSt;
   }
