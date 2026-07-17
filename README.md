@@ -25,13 +25,17 @@ Lose, and it's the end of the line — terminus bar, with the score that ended i
 
 ## Using it
 
-- **Hover** any line or station to isolate routes (future stations show all
-  possible arrivals)
-- **Click a team** for its journey receipt — every stop, score, venue, in your
-  timezone
-- **Click a station** for full match details
+- **Hover** any line or station to isolate routes; stations get a live tooltip
+  card (teams, score, venue — future stations show how many services can still
+  reach them)
+- **Click a team** for its journey, then **press Play to ride the line** — a
+  train marker travels the route, drawing it station by station with the
+  camera following; clicking between matches seeks the train there
+- **Click a station** to pin full match details
 - **Directory** (left) to search and fly to any of the 48 lines
 - **Departures board** (top right): live services, next kickoffs, recent results
+- **Day / Night**: paper map by default, night-service map on toggle (follows
+  your system preference, remembered per browser)
 - Drag to pan, scroll to zoom — works with touch and pinch
 
 ## Data
@@ -68,7 +72,7 @@ node scripts/update-snapshot.mjs
 
 ```
 index.html                      entry point
-css/styles.css                  visual system (dark transit theme)
+css/styles.css                  visual system (paper/night transit theme)
 js/data.js                      ESPN fetch + normalization + bracket builder
 js/metro.js                     map layout engine + SVG renderer
 js/app.js                       panels, routing interactions, pan/zoom, polling

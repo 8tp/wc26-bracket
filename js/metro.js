@@ -2,6 +2,7 @@
  * WC26 Transit — metro map renderer
  * Lays out the tournament as a Beck-style transit diagram and renders SVG.
  * Pure view layer: consumes the normalized model from data.js.
+ * Also records each team's route polyline (+ stop indices) for journey playback.
  */
 
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -82,19 +83,34 @@ function route45(x1, y1, x2, y2, lead = 22) {
   ];
 }
 
-/* ensure a team color reads on the dark canvas */
+/* theme-aware line color: lighten too-dark colors on the night map,
+   darken too-light colors on the paper map */
 export function visibleColor(hex) {
-  if (!hex) return '#9aa4b8';
+  const dark = document.documentElement.dataset.theme === 'dark';
+  if (!hex) return dark ? '#9aa4b8' : '#6b7280';
   const m = hex.replace('#', '');
   let r = parseInt(m.slice(0, 2), 16), g = parseInt(m.slice(2, 4), 16), b = parseInt(m.slice(4, 6), 16);
   const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  if (lum < 0.22) {
-    const t = 0.62;
-    r = Math.round(r + (255 - r) * t * (0.22 - lum) / 0.22);
-    g = Math.round(g + (255 - g) * t * (0.22 - lum) / 0.22);
-    b = Math.round(b + (255 - b) * t * (0.22 - lum) / 0.22);
+  if (dark && lum < 0.22) {
+    const t = 0.62 * (0.22 - lum) / 0.22;
+    r = Math.round(r + (255 - r) * t);
+    g = Math.round(g + (255 - g) * t);
+    b = Math.round(b + (255 - b) * t);
+  } else if (!dark && lum > 0.60) {
+    const t = 0.55 * (lum - 0.60) / 0.40;
+    r = Math.round(r * (1 - t));
+    g = Math.round(g * (1 - t));
+    b = Math.round(b * (1 - t));
   }
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/* ink or paper text on a given background color */
+export function textOn(hex) {
+  const m = (hex || '#888888').replace('#', '');
+  const r = parseInt(m.slice(0, 2), 16), g = parseInt(m.slice(2, 4), 16), b = parseInt(m.slice(4, 6), 16);
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return lum > 0.55 ? '#17191d' : '#ffffff';
 }
 
 const shortCity = (m) => (m.city || m.venue || '').split(',')[0];
@@ -213,10 +229,10 @@ export function render(model) {
     'aria-label': 'World Cup 2026 rendered as a metro map',
   });
 
-  /* defs: dot grid + glow + pulse */
+  /* defs: dot grid */
   const defs = el('defs');
   const grid = el('pattern', { id: 'dotgrid', width: 26, height: 26, patternUnits: 'userSpaceOnUse' });
-  grid.appendChild(el('circle', { cx: 1.2, cy: 1.2, r: 1.2, fill: 'rgba(255,255,255,0.045)' }));
+  grid.appendChild(el('circle', { cx: 1.2, cy: 1.2, r: 1.1, class: 'grid-dot' }));
   defs.appendChild(grid);
   svg.appendChild(defs);
   svg.appendChild(el('rect', { x: 0, y: 0, width: geo.W, height: geo.H, fill: 'url(#dotgrid)' }));
@@ -248,13 +264,16 @@ export function render(model) {
     const top = L.TOP + gi * (4 * L.ROW + L.GROUP_GAP) - L.ROW * 0.72;
     const h = 4 * L.ROW + 6;
     gFurniture.appendChild(el('rect', {
-      x: 10, y: top, width: L.GATE_X + 22, height: h, rx: 12, class: 'district',
+      x: 10, y: top, width: L.GATE_X + 22, height: h, class: 'district',
     }));
     gFurniture.appendChild(el('text', { x: 22, y: top + 16, class: 'district-label' }, [document.createTextNode(`GROUP ${gLetter}`)]));
   });
 
   /* ---- team lines: origins, matchday ticks, yard fan ---- */
   const teamAnchors = {};
+  const routes = {}; // teamId -> { pts: [[x,y],...], stops: [{matchId, i}] }
+  const colOf = { r32: L.R32_X, r16: L.R16_X, qf: L.QF_X, sf: L.SF_X, final: L.FINAL_X };
+
   for (const t of Object.values(model.teams)) {
     const y = geo.yTeam[t.id];
     if (y == null) continue;
@@ -264,21 +283,25 @@ export function render(model) {
 
     // flag + name
     const gOrg = el('g', { class: 'origin', 'data-team': t.id });
-    gOrg.appendChild(el('rect', { x: L.FLAG_X - 1, y: y - 6.5, width: 20, height: 13, rx: 2, fill: color, opacity: 0.85 }));
+    gOrg.appendChild(el('rect', { x: L.FLAG_X - 1, y: y - 6.5, width: 20, height: 13, fill: color, opacity: 0.85 }));
     if (t.logo) gOrg.appendChild(el('image', { href: t.logo, x: L.FLAG_X, y: y - 5.5, width: 18, height: 11, preserveAspectRatio: 'xMidYMid slice' }));
     gOrg.appendChild(el('text', { x: L.LABEL_X - 6, y: y + 3.6, class: 'team-name', 'text-anchor': 'end' }, [document.createTextNode(t.name)]));
-    gOrg.appendChild(el('circle', { cx: L.ORIGIN_X, cy: y, r: 3.6, fill: color, stroke: '#e8ecf4', 'stroke-width': 1.4 }));
+    gOrg.appendChild(el('circle', { cx: L.ORIGIN_X, cy: y, r: 3.6, fill: color, class: 'origin-ring', 'stroke-width': 1.4 }));
     gLine.appendChild(gOrg);
 
+    // base polyline: origin → gate (dead) or origin → yard → R32 berth
+    let d = null;
+    let r32j = null;
+    let r32BerthY = null;
     if (t.advanced) {
-      // find this team's r32 node
-      const r32 = t.journey.find((j) => j.round === 'r32');
-      if (r32) {
-        const n = nodes[r32.match.id];
+      r32j = t.journey.find((j) => j.round === 'r32');
+      if (r32j) {
+        const n = nodes[r32j.match.id];
         const berth = geo.berthOf(n, t.id);
+        r32BerthY = berth.y;
         const xc = L.YARD_X0 + berth.track * L.TRACK_PITCH;
         const xApp = L.R32_X - L.APPROACH;
-        const d = [[L.ORIGIN_X + 4, y]];
+        d = [[L.ORIGIN_X + 4, y]];
         const sgn = Math.sign(berth.y - y) || 1;
         const dIn = xc - L.GATE_X, dOut = xApp - xc;
         if (Math.abs(berth.y - y) >= dIn + dOut) {
@@ -293,36 +316,44 @@ export function render(model) {
         d.push([xApp, berth.y], [L.R32_X - L.SR - 1, berth.y]);
         gLine.appendChild(el('path', { d: pts(d), class: 'line', stroke: color }));
       }
-    } else {
-      // eliminated: local service ends at the gate
-      gLine.appendChild(el('path', {
-        d: pts([[L.ORIGIN_X + 4, y], [L.GATE_X, y]]),
-        class: 'line line-dead', stroke: color,
-      }));
-      gLine.appendChild(terminusBar(L.GATE_X + 3, y, 0));
+    }
+    if (!d) {
+      // eliminated (or group ongoing): local service ends at the gate
+      d = [[L.ORIGIN_X + 4, y], [L.GATE_X, y]];
+      gLine.appendChild(el('path', { d: pts(d), class: 'line line-dead', stroke: color }));
+      gLine.appendChild(terminusBar(L.GATE_X + 3, y));
     }
     gLines.appendChild(gLine);
+
+    // route record: origin, matchday stops (on the straight run), then the rest
+    const rPts = [d[0]];
+    const rStops = [];
+    t.md.forEach((j, i) => {
+      const x = L.MD_X[i];
+      if (!x) return;
+      rPts.push([x, y]);
+      rStops.push({ matchId: j.match.id, i: rPts.length - 1 });
+    });
+    for (let k = 1; k < d.length; k++) rPts.push(d[k]);
+    if (r32j && r32BerthY != null) {
+      rPts.push([L.R32_X, r32BerthY]);
+      rStops.push({ matchId: r32j.match.id, i: rPts.length - 1 });
+    }
+    routes[t.id] = { pts: rPts, stops: rStops };
 
     // matchday ticks
     t.md.forEach((j, i) => {
       const x = L.MD_X[i];
       if (!x) return;
       const res = j.result;
-      const fill = res === 'w' ? 'var(--w)' : res === 'd' ? 'var(--d)' : res === 'l' ? 'var(--l)' : res === 'live' ? 'var(--live)' : 'none';
       const tick = el('circle', {
         cx: x, cy: y, r: 4, class: `tick tick-${res}`, 'data-team': t.id, 'data-match': j.match.id,
-        fill, stroke: res === 'sched' ? 'rgba(255,255,255,0.3)' : 'none', 'stroke-width': 1.2,
       });
-      const opp = model.teams[j.opponentId];
-      tick.appendChild(el('title', {}, [document.createTextNode(
-        `MD${i + 1} · ${res === 'sched' ? 'vs' : res.toUpperCase()} ${scoreText(j.match)} vs ${opp ? opp.name : '?'}`
-      )]));
       gLine.appendChild(tick);
     });
   }
 
   /* ---- knockout edges (winner continues / under construction) ---- */
-  const colOf = { r32: L.R32_X, r16: L.R16_X, qf: L.QF_X, sf: L.SF_X, final: L.FINAL_X };
   for (const n of Object.values(nodes)) {
     if (n.round === 'm3p' || n.round === 'r32') continue;
     const xN = colOf[n.round];
@@ -361,6 +392,44 @@ export function render(model) {
     }
   }
 
+  /* ---- extend routes through the knockout rounds ---- */
+  for (const t of Object.values(model.teams)) {
+    const rt = routes[t.id];
+    if (!rt) continue;
+    const r32j = t.journey.find((j) => j.round === 'r32');
+    let prev = r32j ? { x: L.R32_X, y: geo.nodeY[r32j.match.id] } : null;
+    for (const j of t.journey) {
+      if (j.round === 'group' || j.round === 'r32') continue;
+      if (!prev) break;
+      const m = j.match;
+      const n = nodes[m.id];
+      let seg, stopPt, nextPrev;
+      if (j.round === 'm3p') {
+        const yM = geo.yFinal + L.M3P_DY;
+        seg = route45(prev.x + L.SR + 1, prev.y, L.M3P_X - L.SR - 1, yM, 18);
+        stopPt = [L.M3P_X, yM];
+        nextPrev = { x: L.M3P_X, y: yM };
+      } else {
+        const xN = colOf[n.round];
+        const yN = geo.nodeY[m.id];
+        const fi = n.feeders.findIndex((f) => model.bracket.winnerOf(f.match) === t.id);
+        const berthY = yN + (fi === 1 ? L.BERTH : -L.BERTH);
+        seg = route45(prev.x + L.SR + 1, prev.y, xN - L.SR - 1, berthY, 24);
+        stopPt = [xN, berthY];
+        nextPrev = { x: xN, y: yN };
+      }
+      for (const p of seg) rt.pts.push(p);
+      rt.pts.push(stopPt);
+      rt.stops.push({ matchId: m.id, i: rt.pts.length - 1 });
+      prev = nextPrev;
+    }
+    if (t.champion && geo.finalNode) {
+      const yF = geo.yFinal;
+      for (const p of route45(L.FINAL_X + 13, yF, L.CROWN_X, yF, 20)) rt.pts.push(p);
+      rt.pts.push([L.CROWN_X + 10, yF]);
+    }
+  }
+
   /* ---- stations ---- */
   const stationEls = {};
   for (const n of Object.values(nodes)) {
@@ -373,11 +442,25 @@ export function render(model) {
     const r = isFinal ? 12 : L.SR;
 
     const gSt = el('g', { class: `station st-${m.status}${isFinal ? ' st-final' : ''}${isM3p ? ' st-m3p' : ''}`, 'data-match': m.id });
-    gSt.appendChild(el('circle', { cx: x, cy: y, r, class: 'blob', fill: '#0b101c' }));
+    gSt.appendChild(el('circle', { cx: x, cy: y, r, class: 'blob' }));
     if (m.status === 'in') gSt.appendChild(el('circle', { cx: x, cy: y, r: r + 5, class: 'pulse' }));
-    if (w) gSt.appendChild(el('circle', { cx: x, cy: y, r: isFinal ? 6 : 4.4, fill: isFinal ? 'var(--gold)' : teamColor[w], class: 'blob-core' }));
+    if (w) {
+      // winner's flag at the core (color dot fallback when no logo)
+      const wt = model.teams[w];
+      if (wt?.logo) {
+        const fw = isFinal ? 15 : 12, fh = isFinal ? 10 : 8;
+        gSt.appendChild(el('image', {
+          href: wt.logo, x: x - fw / 2, y: y - fh / 2, width: fw, height: fh,
+          preserveAspectRatio: 'xMidYMid slice', class: 'blob-flag',
+        }));
+        gSt.appendChild(el('rect', {
+          x: x - fw / 2, y: y - fh / 2, width: fw, height: fh, class: 'blob-flag-ring',
+        }));
+      } else {
+        gSt.appendChild(el('circle', { cx: x, cy: y, r: isFinal ? 6 : 4.4, fill: teamColor[w], class: 'blob-core' }));
+      }
+    }
     if (isM3p) gSt.appendChild(el('circle', { cx: x, cy: y, r: r + 3.5, class: 'bronze-ring' }));
-    gSt.appendChild(el('title', {}, [document.createTextNode(stationTitle(model, m))]));
 
     // labels: date above, city + score below
     gSt.appendChild(el('text', { x, y: y - r - 7, class: 'st-date', 'text-anchor': 'middle' }, [document.createTextNode(dayLabel(m))]));
@@ -396,7 +479,7 @@ export function render(model) {
             return lw === loserId;
           }) === 0 ? -1 : 1);
       const by = y + berthSide * L.BERTH;
-      gSt.appendChild(terminusBar(x - r - 4, by, 0, 'bar-ko'));
+      gSt.appendChild(terminusBar(x - r - 4, by));
       const t = el('text', { x: x - r - 9, y: by + 3, class: 'st-out', 'text-anchor': 'end' }, [document.createTextNode(scoreText(m))]);
       gSt.appendChild(t);
     }
@@ -418,16 +501,15 @@ export function render(model) {
   }
   gFurniture.appendChild(gCrown);
 
-  return { svg, geo, stationEls, teamAnchors };
+  return { svg, geo, stationEls, teamAnchors, routes };
 }
 
 /* ---------------------------------------------------------- pieces */
 
-function terminusBar(x, y, angleDeg = 0, cls = '') {
+function terminusBar(x, y) {
   return el('line', {
     x1: x, y1: y - 7, x2: x, y2: y + 7,
-    class: `terminus ${cls}`,
-    transform: angleDeg ? `rotate(${angleDeg} ${x} ${y})` : null,
+    class: 'terminus',
   });
 }
 
@@ -441,13 +523,4 @@ function crownPath(cx, cy, opacity = 1) {
     L${cx + w / 2 - 2},${cy - h / 4}
     L${cx + w / 2},${cy + h / 2} Z`;
   return el('path', { d, class: 'crown-shape', opacity });
-}
-
-export function stationTitle(model, m) {
-  const a = model.teams[m.a.teamId], b = model.teams[m.b.teamId];
-  const names = `${a ? a.name : '?'} vs ${b ? b.name : '?'}`;
-  const when = new Date(m.ts).toLocaleString();
-  const where = [m.venue, m.city].filter(Boolean).join(', ');
-  const score = m.status === 'pre' ? '' : ` · ${scoreText(m)}${m.status === 'in' ? ' LIVE' : ''}`;
-  return `${names}${score}\n${when}\n${where}`;
 }
