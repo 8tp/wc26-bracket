@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>WC26 Transit — the World Cup as a metro map</title>
+  <meta name="description" content="All 48 World Cup 2026 teams as metro lines. Every match is a station. One line reaches MetLife. Live data from ESPN.">
+  <meta property="og:title" content="WC26 Transit Authority">
+  <meta property="og:description" content="48 lines depart. One reaches MetLife. The 2026 World Cup rendered as a living metro map.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='38' fill='%23070b14' stroke='%23e8c15a' stroke-width='9'/><circle cx='50' cy='50' r='12' fill='%23e8c15a'/></svg>">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <main id="mapwrap" aria-label="Interactive metro map of the 2026 World Cup"></main>
+
+  <header class="plaque">
+    <h1>WC26 <em>TRANSIT</em></h1>
+    <p class="sub">Every line to MetLife · FIFA World Cup 2026<br>48 lines depart the group districts. One reaches the crown.</p>
+    <span id="datasource" class="ds">connecting…</span>
+    <div class="actions">
+      <button id="legend-toggle">HOW TO READ</button>
+      <button id="zoom-fit2" onclick="document.getElementById('zoom-fit').click()">FULL MAP</button>
+    </div>
+  </header>
+
+  <aside id="directory" aria-label="Team directory">
+    <button id="dir-toggle">LINES DIRECTORY ▴</button>
+    <div class="dir-head">
+      <input id="search" type="search" placeholder="Find a line (team)…" autocomplete="off">
+    </div>
+    <div id="teamlist"></div>
+  </aside>
+
+  <section id="board" aria-label="Service board">
+    <div class="bd-title">DEPARTURES · ARRIVALS</div>
+    <div id="board-list"></div>
+  </section>
+  <button id="board-toggle">🚉 SERVICES</button>
+
+  <section id="drawer" aria-label="Journey receipt"></section>
+  <section id="matchcard" aria-label="Match details"></section>
+
+  <div id="zoomctl">
+    <button id="zoom-in" title="Zoom in">+</button>
+    <button id="zoom-out" title="Zoom out">−</button>
+    <button id="zoom-fit" title="Fit map">⤢</button>
+  </div>
+
+  <div id="legend" role="dialog" aria-label="How to read this map">
+    <div class="legend-card">
+      <button class="close" id="legend-close">×</button>
+      <h2>HOW TO READ THIS MAP</h2>
+      <p class="lg-sub">The entire tournament as one transit system. Every national team is a line in its own colors; every match is a station where two lines meet. Win and your service continues. Lose and it's the end of the line.</p>
+
+      <div class="lg-row">
+        <svg width="46" height="18"><path d="M2 9 h42" stroke="#4d9de0" stroke-width="5" stroke-linecap="round"/></svg>
+        <span>A team's line — hover to isolate its full route, click for the journey receipt.</span>
+      </div>
+      <div class="lg-row">
+        <svg width="46" height="18"><circle cx="8" cy="9" r="4" fill="#2fbf71"/><circle cx="23" cy="9" r="4" fill="#e3b341"/><circle cx="38" cy="9" r="4" fill="#e5534b"/></svg>
+        <span>Group-stage matchday results: win, draw, loss.</span>
+      </div>
+      <div class="lg-row">
+        <svg width="46" height="18"><path d="M2 9 h30" stroke="#e5534b" stroke-width="5" stroke-linecap="round"/><line x1="36" y1="3" x2="36" y2="15" stroke="#dbe2ee" stroke-width="3" stroke-linecap="round"/></svg>
+        <span>Terminus bar — the service ended here. The label is the score that ended it.</span>
+      </div>
+      <div class="lg-row">
+        <svg width="46" height="18"><circle cx="23" cy="9" r="7" fill="#0b101c" stroke="#f2f5fb" stroke-width="2.5"/><circle cx="23" cy="9" r="3.5" fill="#e8c15a"/></svg>
+        <span>Match station — the core is the winner's color. Click for full match details.</span>
+      </div>
+      <div class="lg-row">
+        <svg width="46" height="18"><path d="M2 9 h42" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 7"/></svg>
+        <span>Under construction — the route exists, the traveler doesn't. Hover a future station to see every team that can still reach it.</span>
+      </div>
+      <div class="lg-row">
+        <svg width="46" height="18"><path d="M2 9 h42" stroke="#c8a05a" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 6"/></svg>
+        <span>The Bronze Shuttle — semifinal losers' spur to the third-place match.</span>
+      </div>
+      <div class="lg-row">
+        <svg width="46" height="18"><path d="M13 16 L15 6 L19 11 L23 4 L27 11 L31 6 L33 16 Z" fill="#e8c15a"/></svg>
+        <span>The crown terminal at MetLife Stadium — reachable by exactly one line.</span>
+      </div>
+
+      <p class="lg-note">
+        The left third is the group stage: twelve districts, four local lines each. The 24 lines that don't
+        qualify terminate at the district gate. The 32 that do fan through the sorting yard into the knockout
+        trunk, where every station halves the network until one line remains.<br><br>
+        Drag to pan · scroll to zoom · search the directory to fly to any team.<br>
+        Live data: ESPN public API (refreshes automatically). Flags: ESPN. Not affiliated with FIFA or ESPN.
+        Map grammar after H. Beck.
+      </p>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
