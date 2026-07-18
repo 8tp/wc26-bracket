@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-07-18T21:22:47.133Z",
+  "fetchedAt": "2026-07-18T22:22:23.002Z",
   "scoreboard": {
     "events": [
       {
@@ -5346,12 +5346,12 @@
             "altGameNote": "FIFA World Cup, 3rd-Place Match",
             "notes": [],
             "status": {
-              "displayClock": "22'",
+              "displayClock": "58'",
               "type": {
                 "state": "in",
                 "completed": false,
-                "shortDetail": "22'",
-                "detail": "22'"
+                "shortDetail": "58'",
+                "detail": "58'"
               }
             },
             "venue": {
@@ -5364,7 +5364,7 @@
             "competitors": [
               {
                 "homeAway": "home",
-                "score": "0",
+                "score": "2",
                 "winner": false,
                 "team": {
                   "id": "478",
@@ -5376,7 +5376,7 @@
               },
               {
                 "homeAway": "away",
-                "score": "2",
+                "score": "4",
                 "winner": false,
                 "team": {
                   "id": "448",
