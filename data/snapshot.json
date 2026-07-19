@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-07-19T21:51:57.965Z",
+  "fetchedAt": "2026-07-19T22:51:19.215Z",
   "scoreboard": {
     "events": [
       {
@@ -5398,12 +5398,12 @@
             "altGameNote": "FIFA World Cup, Final",
             "notes": [],
             "status": {
-              "displayClock": "115'",
+              "displayClock": "120'+5'",
               "type": {
-                "state": "in",
-                "completed": false,
-                "shortDetail": "115'",
-                "detail": "115'"
+                "state": "post",
+                "completed": true,
+                "shortDetail": "AET",
+                "detail": "AET"
               }
             },
             "venue": {
@@ -5417,7 +5417,7 @@
               {
                 "homeAway": "home",
                 "score": "1",
-                "winner": false,
+                "winner": true,
                 "team": {
                   "id": "164",
                   "abbreviation": "ESP",
