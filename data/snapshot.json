@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-07-19T18:26:54.779Z",
+  "fetchedAt": "2026-07-19T19:42:22.294Z",
   "scoreboard": {
     "events": [
       {
@@ -5398,12 +5398,12 @@
             "altGameNote": "FIFA World Cup, Final",
             "notes": [],
             "status": {
-              "displayClock": "0'",
+              "displayClock": "36'",
               "type": {
-                "state": "pre",
+                "state": "in",
                 "completed": false,
-                "shortDetail": "Scheduled",
-                "detail": "Sun, July 19th at 3:00 PM EDT"
+                "shortDetail": "36'",
+                "detail": "36'"
               }
             },
             "venue": {
